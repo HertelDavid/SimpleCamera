@@ -1,13 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:theme="@style/AppTheme">
     <TextureView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:id="@+id/camera_texture_view">
-
     </TextureView>
-</LinearLayout>
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true">
+        <Button
+            android:id="@+id/button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="startImageCapture"
+            android:text="Test"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="100dp"/>
+    </RelativeLayout>
+</RelativeLayout>
