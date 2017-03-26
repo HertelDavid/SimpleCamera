@@ -8,8 +8,8 @@ package com.example.david.simplecamera;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Camera;
 import android.graphics.ImageFormat;
+import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -23,6 +23,7 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -30,13 +31,17 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.Display;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.Semaphore;
 
 public class MainActivity extends AppCompatActivity {
@@ -76,6 +81,23 @@ public class MainActivity extends AppCompatActivity {
     private Surface surface;
     private int textureViewHeight;
     private int textureViewWidth;
+
+    private int capturePortHeight;
+    private int capturePortWidth;
+
+    private final ImageReader.OnImageAvailableListener onImageAvailable = new ImageReader.OnImageAvailableListener(){
+
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+
+            Image image = reader.acquireLatestImage();
+            image.close();
+
+            turnOffFlash();
+            unlockFocus();
+            capturing = false;
+        }
+    };
 
     //Callback methods for accessing the CameraDevice.
     private final CameraDevice.StateCallback cameraDeviceStateCallback = new CameraDevice.StateCallback() {
@@ -195,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
 
             Integer autoFocusState = result.get(CaptureResult.CONTROL_AF_STATE);
 
-            if(autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED){
+            if(autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || autoFocusState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED){
 
                 //The focus is ready.
                 Integer autoExposureState = result.get(CaptureResult.CONTROL_AE_STATE);
@@ -274,7 +296,101 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        //Setup the way the view will look.
         hideDecorLayer();
+        moveCaptureButton(getNavigationBarSize(this.getBaseContext()));
+        setupCapturePort();
+    }
+
+    public static Point getNavigationBarSize(Context context) {
+        Point appUsableSize = getAppUsableScreenSize(context);
+        Point realScreenSize = getRealScreenSize(context);
+
+        // navigation bar on the right
+        if (appUsableSize.x < realScreenSize.x) {
+            return new Point(realScreenSize.x - appUsableSize.x, appUsableSize.y);
+        }
+
+        // navigation bar at the bottom
+        if (appUsableSize.y < realScreenSize.y) {
+            return new Point(appUsableSize.x, realScreenSize.y - appUsableSize.y);
+        }
+
+        // navigation bar is not present
+        return new Point();
+    }
+
+    public static Point getAppUsableScreenSize(Context context) {
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        Display display = windowManager.getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
+        return size;
+    }
+
+    public static Point getRealScreenSize(Context context) {
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        Display display = windowManager.getDefaultDisplay();
+        Point size = new Point();
+
+        if (Build.VERSION.SDK_INT >= 17) {
+            display.getRealSize(size);
+        } else if (Build.VERSION.SDK_INT >= 14) {
+            try {
+                size.x = (Integer) Display.class.getMethod("getRawWidth").invoke(display);
+                size.y = (Integer) Display.class.getMethod("getRawHeight").invoke(display);
+            } catch (IllegalAccessException e) {} catch (InvocationTargetException e) {} catch (NoSuchMethodException e) {}
+        }
+
+        return size;
+    }
+
+    private void moveCaptureButton(Point point){
+
+        int pushup;
+
+        if(point.y > 0){
+            pushup = point.y + 25;
+        }else{
+            pushup = point.y + 150;
+        }
+
+        //Get the layout.
+        ImageView captureRing = (ImageView) findViewById(R.id.capture_ring);
+
+        RelativeLayout captureButton = (RelativeLayout) findViewById(R.id.capture_ring_layout);
+
+        RelativeLayout.LayoutParams captureButtonLayoutParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+
+        captureButtonLayoutParams.setMargins(0, 0, 0, pushup);
+        captureButtonLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, 1);
+
+        captureButton.setLayoutParams(captureButtonLayoutParams);
+    }
+
+    private void setupCapturePort(){
+
+        WindowManager manager = getWindowManager();
+        Display display = manager.getDefaultDisplay();
+        ImageView capturePort = (ImageView) findViewById(R.id.capture_port);
+        Point point = new Point();
+
+        display.getSize(point);
+
+        //Need to set the height of the capture port to the width of the display.
+        this.capturePortWidth = point.x;
+        this.capturePortHeight = point.x;
+
+        //Create the Layout Parameters.
+        RelativeLayout.LayoutParams capturePortParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+
+        //Set the attributes of the layout parameter.
+        capturePortParams.height = this.capturePortHeight;
+        capturePortParams.width = this.capturePortWidth;
+
+        //Use the layout parameters.
+        capturePort.setLayoutParams(capturePortParams);
+
     }
 
     @Override
@@ -286,6 +402,7 @@ public class MainActivity extends AppCompatActivity {
 
         //Create the Image Reader for acquiring the images and their data.
         cameraImageReader = ImageReader.newInstance(MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT, ImageFormat.JPEG, 3);
+        cameraImageReader.setOnImageAvailableListener(onImageAvailable, backgroundHandler);
 
         //Get the CameraManager
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
@@ -309,10 +426,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause(){
 
-        super.onPause();
-
         closeCamera();
         stopBackgroundThread();
+
+        super.onPause();
     }
 
     private void getCameraIds() {
@@ -457,7 +574,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void startImageCapture(View view){
 
-        repeatingRequestForAuto();
+        if(captureRequestLock.tryAcquire() && !capturing){
+
+            capturing = true;
+            repeatingRequestForAuto();
+
+        }
+
+        captureRequestLock.release();
     }
 
     private void repeatingRequestForAuto(){
@@ -493,16 +617,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void preCaptureImage(){
 
-        /*try{
+        try{
 
-            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
+            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CameraMetadata.CONTROL_AE_PRECAPTURE_TRIGGER_START);
             cameraCaptureSession.capture(captureRequestBuilder.build(), captureCallbackListener, backgroundHandler);
             cameraCaptureRequestState = STATE_WAITING_PRECAPTURE;
 
         } catch (CameraAccessException e) {
             
             e.printStackTrace();
-        }*/
+        }
     }
 
     private void captureImage(){
@@ -514,27 +638,17 @@ public class MainActivity extends AppCompatActivity {
 
             //Setup the request.
             imageCaptureBuilder.addTarget(cameraImageReader.getSurface());
-            imageCaptureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-            imageCaptureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_AUTO_FLASH);
-
             CameraCaptureSession.CaptureCallback imageCaptureCallback = new CameraCaptureSession.CaptureCallback() {
 
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
 
-                    Image image = cameraImageReader.acquireNextImage();
-
-                    System.out.println("Woohoo");
-
-                    unlockFocus();
-
-
                 }
             };
 
             cameraCaptureSession.stopRepeating();
-            cameraCaptureSession.capture(imageCaptureBuilder.build(), imageCaptureCallback, null);
+            cameraCaptureSession.setRepeatingRequest(imageCaptureBuilder.build(), imageCaptureCallback, backgroundHandler);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -585,9 +699,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopBackgroundThread(){
 
-        backgroundThread.quitSafely();
-        backgroundThread = null;
-        backgroundHandler = null;
+        if(backgroundThread != null){
+
+            backgroundThread.quitSafely();
+            backgroundThread = null;
+            backgroundHandler = null;
+        }
     }
 
     private void hideDecorLayer(){

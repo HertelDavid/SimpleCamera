@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:theme="@style/AppTheme">
     <TextureView
         android:layout_width="match_parent"
@@ -12,16 +12,46 @@
     </TextureView>
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true">
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:background="@drawable/border"
+            android:id="@+id/capture_port"/>
+    </RelativeLayout>
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
         android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true">
-        <Button
-            android:id="@+id/button"
+        android:id="@+id/capture_ring_layout">
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:onClick="startImageCapture"
-            android:text="Test"
-            android:layout_alignParentBottom="true"
-            android:layout_marginBottom="100dp"/>
+            android:gravity="center">
+            <ImageView
+                android:id="@+id/capture_ring"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/ring"
+                android:clickable="true"
+                android:onClick="startImageCapture"
+                android:elevation="20dp" />
+        </LinearLayout>
     </RelativeLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_alignTop="@+id/capture_ring_layout"
+        android:layout_alignParentStart="true"
+        android:layout_marginTop="5dp">
+        <ImageView
+            android:id="@+id/capture_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/circle"
+            android:elevation="20dp" />
+    </LinearLayout>
 </RelativeLayout>
