@@ -38,7 +38,6 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
-import android.widget.TextView;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -47,6 +46,8 @@ import java.util.concurrent.Semaphore;
 public class MainActivity extends AppCompatActivity {
 
     private final static int CAMERA_PERMISSION = 1;
+    private final static int STORAGE_PERMISSION = 2;
+    private final static int CAMERA_AND_STORAGE_PERMISSION = 3;
     private final static int MAX_PREVIEW_WIDTH = 1920;
     private final static int MAX_PREVIEW_HEIGHT = 1080;
 
@@ -76,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
     private CaptureRequest captureRequest;
     private CameraCaptureSession cameraCaptureSession;
     private TextureView cameraTextureView;
-    private SurfaceTexture cameraSurfaceTexture;
     private ImageReader cameraImageReader;
     private Surface surface;
     private int textureViewHeight;
@@ -84,6 +84,8 @@ public class MainActivity extends AppCompatActivity {
 
     private int capturePortHeight;
     private int capturePortWidth;
+    private boolean cameraPermission;
+    private boolean storagePermission;
 
     private final ImageReader.OnImageAvailableListener onImageAvailable = new ImageReader.OnImageAvailableListener(){
 
@@ -91,11 +93,18 @@ public class MainActivity extends AppCompatActivity {
         public void onImageAvailable(ImageReader reader) {
 
             Image image = reader.acquireLatestImage();
-            image.close();
+
+            ImageSaver imageSaver = createImageSaver(image);
+            backgroundHandler.post(imageSaver);
 
             turnOffFlash();
             unlockFocus();
             capturing = false;
+        }
+
+        private ImageSaver createImageSaver(Image image){
+
+            return new ImageSaver(image, getContentResolver());
         }
     };
 
@@ -185,14 +194,15 @@ public class MainActivity extends AppCompatActivity {
                 case STATE_PREVIEW:
                     break;
                 case STATE_WAITING_AUTO_FOCUS:
-                    autoFocusSet(result);
+                    //autoFocusSet(result);
+                    captureImage();
                     break;
-                case STATE_WAITING_LOCK:
+                /*case STATE_WAITING_LOCK:
                     autoFocusLocked(result);
                     break;
                 case STATE_WAITING_PRECAPTURE:
                     waitForPreCapture(result);
-                    break;
+                    break;*/
                 default:
                     break;
             }
@@ -390,7 +400,6 @@ public class MainActivity extends AppCompatActivity {
 
         //Use the layout parameters.
         capturePort.setLayoutParams(capturePortParams);
-
     }
 
     @Override
@@ -480,13 +489,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void setupCameraOrientation(){
+
+
+    }
+
     private boolean openCamera() {
 
         //Opens the camera if the user has granted this activity permission.
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
 
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
-
-            requestPermissions();
+            checkPermissions();
             return false;
         }
 
@@ -546,6 +559,7 @@ public class MainActivity extends AppCompatActivity {
 
                 //Set the buffer size of the SurfaceTexture.
                 setDimensions();
+
                 cameraSurfaceTexture.setDefaultBufferSize(MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT);
 
                 //Create the Surface object from the SurfaceTexture.
@@ -637,6 +651,8 @@ public class MainActivity extends AppCompatActivity {
             CaptureRequest.Builder imageCaptureBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
 
             //Setup the request.
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            imageCaptureBuilder.set(CaptureRequest.JPEG_ORIENTATION, 90);
             imageCaptureBuilder.addTarget(cameraImageReader.getSurface());
             CameraCaptureSession.CaptureCallback imageCaptureCallback = new CameraCaptureSession.CaptureCallback() {
 
@@ -648,7 +664,7 @@ public class MainActivity extends AppCompatActivity {
             };
 
             cameraCaptureSession.stopRepeating();
-            cameraCaptureSession.setRepeatingRequest(imageCaptureBuilder.build(), imageCaptureCallback, backgroundHandler);
+            cameraCaptureSession.capture(imageCaptureBuilder.build(), imageCaptureCallback, backgroundHandler);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -716,6 +732,27 @@ public class MainActivity extends AppCompatActivity {
         decorView.setSystemUiVisibility(options);
     }
 
+    private void checkPermissions(){
+
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
+
+            cameraPermission = false;
+        }else{
+
+            cameraPermission = true;
+        }
+
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+
+            storagePermission = false;
+        }else{
+
+            storagePermission = true;
+        }
+
+        requestPermissions();
+    }
+
     private void requestPermissions(){
 
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
@@ -723,13 +760,27 @@ public class MainActivity extends AppCompatActivity {
             //If we don't have the permission we need to request it.
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
         }
+
+        if(!cameraPermission && !storagePermission){
+
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, CAMERA_AND_STORAGE_PERMISSION);
+
+        }else if(!cameraPermission){
+
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
+
+        }else if(!storagePermission){
+
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION);
+
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
 
         //Check to see if the permission was granted.
-        if(requestCode == CAMERA_PERMISSION){
+        if(requestCode == CAMERA_AND_STORAGE_PERMISSION || requestCode == CAMERA_PERMISSION || requestCode == STORAGE_PERMISSION){
             if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
 
                 //User granted us access

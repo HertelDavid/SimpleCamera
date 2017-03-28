@@ -36,8 +36,7 @@
                 android:layout_height="wrap_content"
                 android:background="@drawable/ring"
                 android:clickable="true"
-                android:onClick="startImageCapture"
-                android:elevation="20dp" />
+                android:onClick="startImageCapture" />
         </LinearLayout>
     </RelativeLayout>
     <LinearLayout
@@ -51,7 +50,6 @@
             android:id="@+id/capture_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/circle"
-            android:elevation="20dp" />
+            android:background="@drawable/circle" />
     </LinearLayout>
 </RelativeLayout>
